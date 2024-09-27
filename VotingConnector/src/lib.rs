@@ -13,12 +13,9 @@ use stylus_sdk::call::Call;
 sol_storage! {
  #[entrypoint]
  pub struct Test{
-    uint8 content_index;
-    address content_contract;
     address vote_contract;
     address communities;
     address erc20;
-    address this_contract_address;
     address user_profile_address;
     // address reward;
  } 
@@ -26,21 +23,21 @@ sol_storage! {
 
 sol_interface! {
     
-interface IVotesState {
-    function setProfileAddress(address _address) external;
-
-    function setRewardAddress(address _address) external;
-
-    function voteContent(uint8 content_id, int8 vote, address voter, uint256 stake) external;
-
-    function getVoters(uint8 content_id) external view returns (string[] memory);
-
-    function getTotalVotes(uint8 content_id) external view returns (string memory);
-}
+    interface IVotesState {
+        function setProfileAddress(address _address) external;
+    
+        function setRewardAddress(address _address) external;
+    
+        function voteContent(uint8 content_id, int8 vote, address voter, uint256 stake) external;
+    
+        function getVoters(uint8 content_id) external view returns (string[] memory);
+    
+        function getTotalVotes(uint8 content_id) external view returns (string memory);
+    }
     
     
     interface ICommunityState {
-    function createCommunity(string calldata name, string calldata meta_data) external;
+        function createCommunity(string calldata name, string calldata meta_data) external;
 
         function getCommunity(uint8 index) external view returns (string memory);
 
@@ -50,7 +47,7 @@ interface IVotesState {
 
         function nameTaken(string calldata name) external view returns (bool);
 
-    function getLastIndex() external view returns (uint8);
+        function getLastIndex() external view returns (uint8);
     }
         
     interface IErc20 {
@@ -85,21 +82,7 @@ interface IVotesState {
         function isPaused() external view returns (bool);
     }
 
-    
-    
-    interface IContentState {
-        function submitContent(address author, string calldata sub_data, string calldata content_data, uint8 community_id, uint8 content_id) external;
 
-        function getContent(uint8 content_id) external view returns (string memory);
-
-        function getContentByCommunity(uint8 community_id) external view returns (string[] memory);
-
-        function verifyContent(uint8 content_id) external;
-    }
-
-    
-        
-    
     interface IUsers {
         function setErc2OAddress(address _address) external;
     
@@ -122,10 +105,6 @@ interface IVotesState {
 
 #[public]
 impl Test {
-    pub fn set_content_address(&mut self, address: Address) {
-        self.content_contract.set(address);
-    }
-
     pub fn set_vote_address(&mut self, address: Address) {
         self.vote_contract.set(address);
     }
@@ -164,52 +143,6 @@ impl Test {
         self.add_my_stakes(content_id);
         self.vote_state(stake, vote, content_id);
     }
-
-    // pub fn register_user(&mut self) {
-    //     let user_x = msg::sender();
-    //     let meta_date_contract = IUsers::new(*self.user_profile_address);
-    //     let config = Call::new_in(self);
-    //     let _ = meta_date_contract
-    //         .register_user(config, user_x)
-    //         .expect("Failed to call on MetaDate_contract");
-    // }
-
-    // pub fn add_content(
-    //     &mut self,
-    //     sub_data: String,
-    //     content_data: String,
-    //     community_id: u8,
-    //     stake: U256
-    // ) {
-    //     let sender = msg::sender();
-    //     let conte = self.content_index.get();
-    //     let content_id: u8 = conte.to::<u8>();
-
-    //     if community_id != 0 {
-    //         if !self.is_a_member(community_id) {
-    //             return;
-    //         }
-    //     }
-
-    //     if !self.has_enough_balance(stake) {
-    //         return;
-    //     }
-    //     self.set_self_admin();
-    //     self.stake(stake);
-    //     self.trf_vote_reward(stake);
-    //     self.add_my_stakes(content_id);
-    //     self.change_reputation_state(7);
-    //     self.vote_state(stake, 1, content_id);
-
-    //     let meta_date_contract = IContentState::new(*self.content_contract);
-    //     let config = Call::new_in(self);
-    //     let _ = meta_date_contract
-    //         .submit_content(config, sender, sub_data, content_data, community_id, content_id)
-    //         .expect("Failed to call on MetaDate_contract");
-
-    //     let new_content_id = self.content_index.get() + U8::from(1);
-    //     self.content_index.set(new_content_id);
-    // }
 }
 
 impl Test {

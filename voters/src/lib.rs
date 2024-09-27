@@ -34,8 +34,6 @@ sol_interface! {
     interface IUsers {
         function setErc2OAddress(address _address) external;
     
-        function setSelfAddress(address _address) external;
-    
         function registerUser(address _address) external;
     
         function hasRegistered(address user_address) external view returns (bool);
@@ -44,22 +42,21 @@ sol_interface! {
     
         function getProfile(address user_id) external view returns (string memory);
     
-        function setMyStakes(address user, int64 content_id) external;
+        function setMyStakes(address user, uint8 content_id) external;
     
         function setCommunity(address user, uint8 community_id) external;
     
-        function getCommunity(address user) external view returns (string[] memory);
-    
-        function getMyStakes(address user) external view returns (string[] memory);
+        function getMyStakes(address user) external view returns (uint8[] memory);
     }
-    
 
     interface IRewardState {
         function setErc2OAddress(address _address) external;
     
-        function setSelfAddress(address _address) external;
-    
         function voteContent(uint8 content_id, int8 vote, address voter, uint256 stake) external;
+    
+        function getReward(uint8 content_id) external;
+    
+        function isRewarded(uint8 content_id) external view returns (bool);
     }
 
 }
