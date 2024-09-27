@@ -7,7 +7,7 @@ use stylus_sdk::{ evm, msg, prelude::*, block };
 
 const MIN_BALANCE: u8 = 50;
 const MIN_TRANSACTION_DELAY: u64 = 15; // 15 seconds between transactions
-const MAX_SUPPLY: u32 = 760_000_000_000_000_000;
+const MAX_SUPPLY: u128 = 760_000_000_000_000_000;
 
 pub trait Erc20Params {
     /// Immutable token name
@@ -36,7 +36,8 @@ sol_storage! {
         // time user lasst made a transaction 
         mapping(address => uint256) last_transaction_time;
 
-        // set transaction limit 
+        // set transaction limit
+        // to start i want to make sure a user can not transact more than 0.1 percent of the total supply
         uint256 transaction_limit;
 
         
@@ -44,9 +45,8 @@ sol_storage! {
 
         // this is what i want to uses as a maintance countrol. it is not perfect for now.
         // it is just for the hack. i will update it after the hack with more time in hand 
-         
-        bool pause;
 
+        bool pause;
 
     }
 }
@@ -101,6 +101,7 @@ impl<T: Erc20Params> Erc20<T> {
 
         let transaction_limit = self.transaction_limit.get();
 
+        // this is too get the user balance
         let mut sender_balance = self.balances.setter(from);
         let old_sender_balance = sender_balance.get();
 
@@ -137,16 +138,18 @@ impl<T: Erc20Params> Erc20<T> {
         }
 
         // this is too checck if the cooldown is over
+        // first to check if it is the admin, so that the stake can be rewarded
         let mut last_time = self.last_transaction_time.setter(from);
-        if U256::from(block::timestamp()) < last_time.get() + U256::from(MIN_TRANSACTION_DELAY) {
-            return Err(
-                Erc20Error::CoolDownRestriction(CoolDownRestriction {
-                    caller: from,
-                    last_time: last_time.get(),
-                })
-            );
+        if msg::sender() != self.admin.get() {
+            if U256::from(block::timestamp()) < last_time.get() + U256::from(MIN_TRANSACTION_DELAY) {
+                return Err(
+                    Erc20Error::CoolDownRestriction(CoolDownRestriction {
+                        caller: from,
+                        last_time: last_time.get(),
+                    })
+                );
+            }
         }
-
         // tthis is the part where the actual trascation is being countroled.
         sender_balance.set(old_sender_balance - value);
 
@@ -309,6 +312,19 @@ impl<T: Erc20Params> Erc20<T> {
         Ok(true)
     }
 
+    pub fn stake_control(&mut self, from: Address, value: U256) -> Result<bool, Erc20Error> {
+        if msg::sender() != self.admin.get() {
+            return Err(
+                Erc20Error::RestrictedCall(RestrictedCall {
+                    caller: msg::sender(),
+                })
+            );
+        }
+        let admin_wallet = self.admin.get();
+        self._transfer(from, admin_wallet, value)?;
+        Ok(true)
+    }
+
     /// Approves the spenditure of `value` tokens of msg::sender() to `spender`
     pub fn approve(&mut self, spender: Address, value: U256) -> bool {
         self.allowances.setter(msg::sender()).insert(spender, value);
@@ -330,8 +346,16 @@ impl<T: Erc20Params> Erc20<T> {
         self.admin.set(admin);
     }
 
-    pub fn set_transaction_limit(&mut self, limit: U256) {
+    pub fn set_transaction_limit(&mut self, limit: U256) -> Result<(), Erc20Error> {
+        if msg::sender() != self.admin.get() {
+            return Err(
+                Erc20Error::RestrictedCall(RestrictedCall {
+                    caller: msg::sender(),
+                })
+            );
+        }
         self.transaction_limit.set(limit);
+        return Ok(());
     }
     pub fn pause(&mut self) -> Result<(), Erc20Error> {
         if msg::sender() != self.admin.get() {

@@ -2,42 +2,87 @@
 // written by Steven Hert, omo this code needs to be formated after the competition
 
 extern crate alloc;
-use stylus_sdk::{ prelude::*, stylus_proc::entrypoint };
-use stylus_sdk::{ console, msg, evm, alloy_primitives::{ Address, U8, U256 } };
+use stylus_sdk::{ prelude::* };
+use stylus_sdk::{ msg, alloy_primitives::{ Address } };
 
 use stylus_sdk::call::Call;
 
-// #[global_allocator]
-// static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+// this contract is used to get info, so only view state;
 
 sol_storage! {
- #[entrypoint]
- pub struct Test{
-    uint8 content_index;
-    address content_contract;
-    address vote_contract
- } 
+    #[entrypoint]
+    pub struct Test{
+        address content_contract;
+        address vote_contract;
+        address user_profile_address;
+        address community_address;
+    } 
 }
 
 sol_interface! {
 
+    
     interface IContentState {
-        function submitContent(address author_id, string calldata title, uint8 category, string calldata content, string calldata stake, uint8 community_id, bool is_global, uint8 content_counter_x) external;
+        function submitContent(address author, string calldata sub_data, string calldata content_data, uint8 community_id, uint8 content_id) external;
 
         function getContent(uint8 content_id) external view returns (string memory);
 
-        function getContentBySpecific(uint8 type_x, uint8 type_id) external view returns (string[] memory);
+        function getContentByCommunity(uint8 community_id) external view returns (string[] memory);
 
-        function setVerified(uint8 content_id) external;
+        function verifyContent(uint8 content_id) external;
     }
 
+    
+    
     interface IVotesState {
+        function setProfileAddress(address _address) external;
+    
+        function setRewardAddress(address _address) external;
+    
         function voteContent(uint8 content_id, int8 vote, address voter, uint256 stake) external;
-
+    
         function getVoters(uint8 content_id) external view returns (string[] memory);
-
+    
         function getTotalVotes(uint8 content_id) external view returns (string memory);
     }
+    
+    
+    interface IUsers {
+        function setErc2OAddress(address _address) external;
+    
+        function registerUser(address _address) external;
+    
+        function hasRegistered(address user_address) external view returns (bool);
+    
+        function changeReputationState(address user_id, int64 points) external;
+    
+        function getProfile(address user_id) external view returns (string memory);
+    
+        function setMyStakes(address user, uint8 content_id) external;
+    
+        function setCommunity(address user, uint8 community_id) external;
+    
+        function getMyStakes(address user) external view returns (uint8[] memory);
+    }
+
+
+    
+    interface ICommunityState {
+        function createCommunity(string calldata name, string calldata meta_data) external;
+    
+            function getCommunity(uint8 index) external view returns (string memory);
+    
+            function addUserToCommunity(uint8 community_id) external;
+    
+            function isAMember(uint8 index, address user) external view returns (bool);
+    
+            function nameTaken(string calldata name) external view returns (bool);
+    
+        function getLastIndex() external view returns (uint8);
+        }
+        
+        
+        
 }
 
 #[public]
@@ -50,53 +95,54 @@ impl Test {
         self.vote_contract.set(address);
     }
 
-    // pub fn get_content_list(&self, type_x: u8, type_id: u8) -> Vec<String> {
-    //     let address = self.content_contract.get();
-    //     let meta_date_contract = IContentState::new(address);
-    //     let config = Call::new();
-    //     meta_date_contract.get_content_by_specific(config, type_x, type_id).expect("drat")
-    // }
+    pub fn set_profile_address(&mut self, address: Address) {
+        self.user_profile_address.set(address);
+    }
+    pub fn set_community_address(&mut self, address: Address) {
+        self.community_address.set(address);
+    }
 
-    // pub fn get_content(&self, content_id: u8) -> String {
-    //     let address = self.content_contract.get();
-    //     let meta_date_contract = IContentState::new(address);
-    //     let config = Call::new();
-    //     meta_date_contract.get_content(config, content_id).expect("drat")
-    // }
+    pub fn get_content(&self, content_id: u8) -> String {
+        let address = self.content_contract.get();
+        let meta_date_contract = IContentState::new(address);
+        let config = Call::new();
+        meta_date_contract.get_content(config, content_id).expect("drat")
+    }
 
-    pub fn add_content(
-        &mut self,
-        title: String,
-        category: u8,
-        content: String,
-        stake: U256,
-        community_id: u8,
-        is_global: bool
-    ) {
-        let author_id = msg::sender();
-        let content_counter_x = self.content_index.get();
-        let content_index_ue: [u8; 1] = content_counter_x.to_le_bytes();
-        let format_stake = format!("{}", stake);
-        let vote: i8 = 1;
+    pub fn get_content_list(&self, community_id: u8) -> Vec<String> {
+        if community_id > 0 {
+            if !self.is_a_member(community_id) {
+                return Vec::new();
+            }
+        }
+        let address = self.content_contract.get();
+        let meta_date_contract = IContentState::new(address);
+        let config = Call::new();
+        meta_date_contract.get_content_by_community(config, community_id).expect("drat")
+    }
 
-        let meta_date_contract = IContentState::new(*self.content_contract);
-        let config = Call::new_in(self);
-        let _ = meta_date_contract
-            .submit_content(
-                config,
-                author_id,
-                title,
-                category,
-                content,
-                format_stake,
-                community_id,
-                is_global,
-                content_index_ue[0]
-            )
-            .expect("Failed to call on MetaDate");
-        self.vote_state(stake, vote, content_index_ue[0]);
-        let new_index = content_counter_x + U8::from(1);
-        self.content_index.set(new_index);
+    pub fn has_registered(&self) -> bool {
+        let user = msg::sender();
+        let address = self.user_profile_address.get();
+        let meta_date_contract = IUsers::new(address);
+        let config = Call::new();
+        meta_date_contract.has_registered(config, user).expect("drat")
+    }
+
+    pub fn get_profile(&self) -> String {
+        let user = msg::sender();
+        let address = self.user_profile_address.get();
+        let meta_date_contract = IUsers::new(address);
+        let config = Call::new();
+        meta_date_contract.get_profile(config, user).expect("drat")
+    }
+
+    pub fn get_my_stakes(&self) -> Vec<u8> {
+        let user = msg::sender();
+        let address = self.user_profile_address.get();
+        let meta_date_contract = IUsers::new(address);
+        let config = Call::new();
+        meta_date_contract.get_my_stakes(config, user).expect("drat")
     }
 
     pub fn get_voters(&self, content_id: u8) -> Vec<String> {
@@ -112,20 +158,14 @@ impl Test {
         let config = Call::new();
         meta_date_contract.get_total_votes(config, content_id).expect("drat")
     }
-
-    pub fn vote(&mut self, stake: U256, vote: i8, content_id: u8) {
-        self.vote_state(stake, vote, content_id)
-    }
 }
 
 impl Test {
-    pub fn vote_state(&mut self, stake: U256, vote: i8, content_id: u8) {
-        let author_id = msg::sender();
-
-        let meta_date_contract = IVotesState::new(*self.vote_contract);
-        let config = Call::new_in(self);
-        let _ = meta_date_contract
-            .vote_content(config, content_id, vote, author_id, stake)
-            .expect("Failed to call on MetaDate_contract");
+    pub fn is_a_member(&self, community_id: u8) -> bool {
+        let user = msg::sender();
+        let address = self.community_address.get();
+        let meta_date_contract = ICommunityState::new(address);
+        let config = Call::new();
+        meta_date_contract.is_a_member(config, community_id, user).expect("drat")
     }
 }
